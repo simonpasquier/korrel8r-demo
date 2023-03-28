@@ -2,7 +2,15 @@
 
 set -e -u -o pipefail
 
-TIMEOUT="${TIMEOUT:-120s}"
+TIMEOUT="${TIMEOUT:-60s}"
+
+wait_for_crd() {
+	while ! oc get crd "$1"; do
+		sleep 3;
+	done
+
+	oc wait --for=condition=NamesAccepted=true --for=condition=Established=true --timeout="${TIMEOUT}" crd "$1"
+}
 
 monitoring() {
 	cat <<EOF | oc apply -f -
@@ -46,7 +54,7 @@ EOF
 }
 
 cluster_logging_operator() {
-	cat <<EOF | oc create -f -
+	cat <<EOF | oc apply -f -
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -57,7 +65,7 @@ metadata:
     openshift.io/cluster-monitoring: "true"
 EOF
 
-	cat <<EOF | oc create -f -
+	cat <<EOF | oc apply -f -
 apiVersion: operators.coreos.com/v1
 kind: OperatorGroup
 metadata:
@@ -68,7 +76,7 @@ spec:
   - openshift-logging
 EOF
 
-	cat <<EOF | oc create -f -
+	cat <<EOF | oc apply -f -
 apiVersion: operators.coreos.com/v1alpha1
 kind: Subscription
 metadata:
@@ -81,11 +89,11 @@ spec:
   sourceNamespace: openshift-marketplace
 EOF
 
-	oc wait --for=condition=NamesAccepted=true --for=condition=Established=true --timeout="${TIMEOUT}" crd clusterloggings.logging.openshift.io
+	wait_for_crd clusterloggings.logging.openshift.io
 }
 
 loki_operator() {
-	cat <<EOF | oc create -f -
+	cat <<EOF | oc apply -f -
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -96,7 +104,7 @@ metadata:
     openshift.io/cluster-monitoring: "true"
 EOF
 
-	cat <<EOF | oc create -f -
+	cat <<EOF | oc apply -f -
 apiVersion: operators.coreos.com/v1
 kind: OperatorGroup
 metadata:
@@ -105,7 +113,7 @@ metadata:
 spec: {}
 EOF
 
-	cat <<EOF | oc create -f -
+	cat <<EOF | oc apply -f -
 apiVersion: operators.coreos.com/v1alpha1
 kind: Subscription
 metadata:
@@ -119,11 +127,11 @@ spec:
   sourceNamespace: openshift-marketplace
 EOF
 
-	oc wait --for=condition=NamesAccepted=true --for=condition=Established=true --timeout="${TIMEOUT}" crd lokistacks.loki.grafana.com
+	wait_for_crd lokistacks.loki.grafana.com
 }
 
 minio() {
-	cat <<EOF | oc create -f -
+	cat <<EOF | oc apply -f -
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -137,7 +145,7 @@ spec:
       storage: 10Gi
 EOF
 
-	cat <<EOF | oc create -f -
+	cat <<EOF | oc apply -f -
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -181,7 +189,7 @@ spec:
           claimName: minio
 EOF
 
-	cat <<EOF | oc create -f -
+	cat <<EOF | oc apply -f -
 apiVersion: v1
 kind: Service
 metadata:
@@ -202,7 +210,7 @@ EOF
 }
 
 loki_stack() {
-	cat <<EOF | oc create -f -
+	cat <<EOF | oc apply -f -
 apiVersion: v1
 kind: Secret
 metadata:
@@ -216,7 +224,7 @@ stringData:
 type: Opaque
 EOF
 
-	cat <<EOF | oc create -f -
+	cat <<EOF | oc apply -f -
 apiVersion: loki.grafana.com/v1
 kind: LokiStack
 metadata:
@@ -240,7 +248,7 @@ EOF
 }
 
 cluster_logging_collector() {
-	cat <<EOF | oc create -f -
+	cat <<EOF | oc apply -f -
 apiVersion: logging.openshift.io/v1
 kind: ClusterLogging
 metadata:
